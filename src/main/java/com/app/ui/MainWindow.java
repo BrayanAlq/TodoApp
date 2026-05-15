@@ -10,228 +10,245 @@ import com.app.service.TaskService;
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import javax.swing.border.LineBorder;
+import javax.swing.border.MatteBorder;
 import java.awt.*;
-import java.awt.event.MouseAdapter;
-import java.awt.event.MouseEvent;
+import java.awt.event.*;
+import java.awt.geom.RoundRectangle2D;
+import java.awt.BasicStroke;
 import java.util.List;
-import java.util.ArrayList;
 
 public class MainWindow extends JFrame {
 
-    private final AppLogger      logger   = AppLogger.getInstance();
-    private final ConfigManager  config   = ConfigManager.getInstance();
-    private final ThemeManager   theme    = ThemeManager.getInstance();
+    // ── Singleton dependencies ──────────────────────────────────────────────
+    private final AppLogger       logger  = AppLogger.getInstance();
+    private final ConfigManager   config  = ConfigManager.getInstance();
+    private final ThemeManager    theme   = ThemeManager.getInstance();
     private final LanguageManager lang    = LanguageManager.getInstance();
-    private final TaskService    service  = TaskService.getInstance();
+    private final TaskService     service = TaskService.getInstance();
 
-    private JPanel     rootPanel;
-    private JPanel     headerPanel;
-    private JLabel     headerTitle;
-    private JTextField inputField;
-    private JButton    btnAdd;
-    private JButton    btnDelete;
-    private JButton    btnClearCompleted;
-    private JPanel     filterPanel;
-    private JButton    btnFilterAll;
-    private JButton    btnFilterPending;
-    private JButton    btnFilterCompleted;
-    private JPanel     taskListPanel;
+    // ── Layout constants ────────────────────────────────────────────────────
+    private static final int  PADDING_H    = 24;
+    private static final int  PADDING_V    = 18;
+    private static final int  RADIUS       = 10;
+    private static final int  ROW_HEIGHT   = 48;
+    private static final int  INPUT_HEIGHT = 40;
+    private static final int  BTN_HEIGHT   = 34;
+    private static final int  GAP_SM       = 6;
+    private static final int  GAP_MD       = 10;
+    private static final int  GAP_LG       = 16;
+    private static final Font FONT_TOOLTIP = new Font("Segoe UI", Font.PLAIN, 12);
+
+    // ── UI components ───────────────────────────────────────────────────────
+    private JPanel      rootPanel;
+    private JPanel      headerPanel;
+    private JLabel      headerTitle;
+    private JTextField  inputField;
+    private FlatButton  btnAdd;
+    private FlatButton  btnDelete;
+    private FlatButton  btnClearCompleted;
+    private JPanel      filterPanel;
+    private FlatButton  btnFilterAll;
+    private FlatButton  btnFilterPending;
+    private FlatButton  btnFilterCompleted;
+    private JPanel      taskListPanel;
     private JScrollPane scrollPane;
-    private JLabel     lblTotal;
-    private JLabel     lblPending;
-    private JLabel     lblCompleted;
-    private JComboBox<String> comboTheme;
-    private JComboBox<String> comboLang;
-    private JLabel     lblTheme;
-    private JLabel     lblLang;
-    private JComboBox<String> comboFontFamily;
-    private JComboBox<String> comboFontSize;
-    private JLabel     lblFont;
+    private JLabel      lblTotal;
+    private JLabel      lblPending;
+    private JLabel      lblCompleted;
+    private FlatCombo comboTheme;
+    private FlatCombo comboLang;
+    private JLabel      lblTheme;
+    private JLabel      lblLang;
 
-    private List<String> themeCodes = new ArrayList<>();
     private String activeFilter = "all";
 
-    private static final String[] LANGUAGE_CODES = {"es", "en", "fr", "pt", "de"};
-
-    private boolean updatingControls = false;
-
+    // ── Constructor ─────────────────────────────────────────────────────────
     public MainWindow() {
+        configureTooltips();
         initFrame();
         buildUI();
         applyTheme();
         refreshTaskList();
         setVisible(true);
+        logger.info("Aplicación iniciada. Versión: " + config.getVersion());
+    }
 
-        logger.info("Aplicaci\u00f3n iniciada. Versi\u00f3n: " + config.getVersion());
+    // ══════════════════════════════════════════════════════════════════════
+    //  Frame & global setup
+    // ══════════════════════════════════════════════════════════════════════
+
+    private void configureTooltips() {
+        UIManager.put("ToolTip.background", new Color(30, 30, 30));
+        UIManager.put("ToolTip.foreground", Color.WHITE);
+        UIManager.put("ToolTip.font",       FONT_TOOLTIP);
+        UIManager.put("ToolTip.border",
+                BorderFactory.createCompoundBorder(
+                        new LineBorder(new Color(60, 60, 60), 1, true),
+                        new EmptyBorder(5, 10, 5, 10)
+                ));
     }
 
     private void initFrame() {
         setTitle(lang.get("app.title"));
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        setMinimumSize(new Dimension(520, 640));
-        setPreferredSize(new Dimension(580, 700));
+        setMinimumSize(new Dimension(0, 600));
+        setPreferredSize(new Dimension(680, 700));
         setLocationRelativeTo(null);
         pack();
     }
 
+    // ══════════════════════════════════════════════════════════════════════
+    //  UI assembly
+    // ══════════════════════════════════════════════════════════════════════
+
     private void buildUI() {
         rootPanel = new JPanel(new BorderLayout(0, 0));
         setContentPane(rootPanel);
-
         rootPanel.add(buildHeaderPanel(), BorderLayout.NORTH);
         rootPanel.add(buildCenterPanel(), BorderLayout.CENTER);
-        rootPanel.add(buildStatsPanel(), BorderLayout.SOUTH);
+        rootPanel.add(buildStatsPanel(),  BorderLayout.SOUTH);
     }
 
-    private String[] getLanguageOptions() {
-        return new String[]{
-                lang.get("option.lang.es"),
-                lang.get("option.lang.en"),
-                lang.get("option.lang.fr"),
-                lang.get("option.lang.pt"),
-                lang.get("option.lang.de")
-        };
-    }
-
-    private int getLanguageIndex(String code) {
-        for (int i = 0; i < LANGUAGE_CODES.length; i++) {
-            if (LANGUAGE_CODES[i].equals(code)) {
-                return i;
-            }
-        }
-        return 0;
-    }
-
-    private String getSelectedLanguageCode() {
-        int index = comboLang.getSelectedIndex();
-
-        if (index < 0 || index >= LANGUAGE_CODES.length) {
-            return "es";
-        }
-
-        return LANGUAGE_CODES[index];
-    }
-
-    private String[] getThemeOptions() {
-        return new String[]{
-                lang.get("option.theme.light"),
-                lang.get("option.theme.dark")
-        };
-    }
+    // ── Header ──────────────────────────────────────────────────────────────
 
     private JPanel buildHeaderPanel() {
         headerPanel = new JPanel(new BorderLayout());
-        headerPanel.setBorder(new EmptyBorder(16, 20, 16, 20));
+        headerPanel.setBorder(new EmptyBorder(PADDING_V, PADDING_H, PADDING_V, PADDING_H));
 
-        headerTitle = new JLabel(lang.get("app.header.title"));
+        headerTitle = new JLabel(safeGet("app.header.title", "Mis Tareas"));
         headerPanel.add(headerTitle, BorderLayout.WEST);
 
-        JPanel configPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 0));
+        JPanel configPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, GAP_MD, 0));
         configPanel.setOpaque(false);
 
-        lblTheme = new JLabel(lang.get("label.theme"));
-        comboTheme = new JComboBox<>();
-        themeCodes = theme.getAvailableThemes();
-        themeCodes.forEach(code -> comboTheme.addItem(theme.getThemeDisplay(code)));
-        int themeIdx = themeCodes.indexOf(config.getTheme());
-        if (themeIdx >= 0) comboTheme.setSelectedIndex(themeIdx);
+        lblTheme = new JLabel(safeGet("label.theme", "Tema"));
+        comboTheme = buildStyledCombo(new String[]{
+                safeGet("option.theme.light", "Claro"),
+                safeGet("option.theme.dark",  "Oscuro")
+        });
+        comboTheme.setSelectedIndex("dark".equals(config.getTheme()) ? 1 : 0);
+        comboTheme.setToolTipText(lang.get("tooltip.theme"));
         comboTheme.addActionListener(e -> onThemeChanged());
 
-        lblLang = new JLabel(lang.get("label.language"));
-        comboLang = new JComboBox<>(getLanguageOptions());
-        comboLang.setSelectedIndex(getLanguageIndex(config.getLanguage()));
+        lblLang = new JLabel(safeGet("label.language", "Idioma"));
+        comboLang = buildStyledCombo(new String[]{
+                safeGet("option.lang.es", "Español"),
+                safeGet("option.lang.en", "English")
+        });
+        comboLang.setSelectedIndex("en".equals(config.getLanguage()) ? 1 : 0);
+        comboLang.setToolTipText(lang.get("tooltip.language"));
         comboLang.addActionListener(e -> onLanguageChanged());
-
-        lblFont = new JLabel(lang.get("label.font"));
-        comboFontFamily = new JComboBox<>(GraphicsEnvironment.getLocalGraphicsEnvironment()
-            .getAvailableFontFamilyNames());
-        comboFontFamily.setSelectedItem(theme.getFontNormal().getFamily());
-        comboFontFamily.addActionListener(e -> onFontChanged());
-
-        comboFontSize = new JComboBox<>();
-        for (int i = 10; i <= 24; i++) {
-            comboFontSize.addItem(String.valueOf(i));
-        }
-        comboFontSize.setSelectedItem(String.valueOf(theme.getFontNormal().getSize()));
-        comboFontSize.addActionListener(e -> onFontChanged());
 
         configPanel.add(lblTheme);
         configPanel.add(comboTheme);
-        configPanel.add(Box.createHorizontalStrut(10));
+        configPanel.add(Box.createHorizontalStrut(GAP_LG));
         configPanel.add(lblLang);
         configPanel.add(comboLang);
-        configPanel.add(Box.createHorizontalStrut(10));
-        configPanel.add(lblFont);
-        configPanel.add(comboFontFamily);
-        configPanel.add(comboFontSize);
 
         headerPanel.add(configPanel, BorderLayout.EAST);
         return headerPanel;
     }
 
+    // ── Center ──────────────────────────────────────────────────────────────
+
     private JPanel buildCenterPanel() {
-        JPanel below = new JPanel(new BorderLayout(0, 8));
-        below.setOpaque(false);
-        below.add(buildFilterPanel(), BorderLayout.NORTH);
-        below.add(buildTaskArea(), BorderLayout.CENTER);
-
-        JPanel full = new JPanel(new BorderLayout(0, 12));
+        JPanel full = new JPanel(new BorderLayout(0, GAP_LG));
         full.setOpaque(false);
-        full.setBorder(new EmptyBorder(12, 20, 10, 20));
-        full.add(buildInputPanel(), BorderLayout.NORTH);
-        full.add(below, BorderLayout.CENTER);
-
+        full.setBorder(new EmptyBorder(GAP_LG, PADDING_H, GAP_MD, PADDING_H));
+        full.add(buildInputPanel(),  BorderLayout.NORTH);
+        full.add(buildBelowInput(),  BorderLayout.CENTER);
         return full;
     }
 
+    private JPanel buildBelowInput() {
+        JPanel panel = new JPanel(new BorderLayout(0, GAP_LG));
+        panel.setOpaque(false);
+        panel.add(buildFilterPanel(), BorderLayout.NORTH);
+        panel.add(buildTaskArea(),    BorderLayout.CENTER);
+        return panel;
+    }
+
     private JPanel buildInputPanel() {
-        JPanel panel = new JPanel(new BorderLayout(8, 0));
+        JPanel panel = new JPanel(new BorderLayout(GAP_MD, 0));
         panel.setOpaque(false);
 
-        inputField = new JTextField();
-        inputField.putClientProperty("hint", lang.get("input.placeholder"));
-
-        btnAdd = createButton(lang.get("btn.add"), "primary");
-        btnAdd.setPreferredSize(new Dimension(100, 38));
-        btnAdd.addActionListener(e -> onAddTask());
-
+        inputField = new RoundTextField(safeGet("input.placeholder", "Nueva tarea…"), RADIUS);
+        inputField.setPreferredSize(new Dimension(0, INPUT_HEIGHT));
         inputField.addActionListener(e -> onAddTask());
+
+        btnAdd = createStyledButton(safeGet("btn.add", "Agregar"), "primary");
+        btnAdd.setPreferredSize(new Dimension(100, INPUT_HEIGHT));
+        btnAdd.setToolTipText(lang.get("tooltip.btn.add"));
+        btnAdd.addActionListener(e -> onAddTask());
+        btnAdd.setFont(theme.getFontNormal());
 
         panel.add(inputField, BorderLayout.CENTER);
         panel.add(btnAdd,     BorderLayout.EAST);
         return panel;
     }
 
+    /**
+     * Two-row filter panel to avoid FlowLayout overflow.
+     *
+     *  Row 1 — filter toggles : [Todas] [Pendientes] [Completadas]
+     *  Row 2 — action buttons : [Eliminar] [Limpiar completadas]
+     *
+     * Stacking them vertically guarantees every button is always visible
+     * regardless of window width.
+     */
     private JPanel buildFilterPanel() {
-        filterPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
+        filterPanel = new JPanel(new BorderLayout());
+        filterPanel.setOpaque(false);
 
-        btnFilterAll       = createFilterButton(lang.get("filter.all"),       "all");
-        btnFilterPending   = createFilterButton(lang.get("filter.pending"),   "pending");
-        btnFilterCompleted = createFilterButton(lang.get("filter.completed"), "completed");
+        // LEFT — filter toggles
+        JPanel left = new JPanel(new FlowLayout(FlowLayout.LEFT, GAP_SM, 0));
+        left.setOpaque(false);
 
-        btnDelete         = createButton(lang.get("btn.delete"),          "danger");
-        btnClearCompleted = createButton(lang.get("btn.clear.completed"), "success");
+        btnFilterAll       = createFilterButton(safeGet("filter.all",       "Todas"),       "all");
+        btnFilterPending   = createFilterButton(safeGet("filter.pending",   "Pendientes"),  "pending");
+        btnFilterCompleted = createFilterButton(safeGet("filter.completed", "Completadas"), "completed");
 
+        left.add(btnFilterAll);
+        left.add(btnFilterPending);
+        left.add(btnFilterCompleted);
+
+        // RIGHT — action buttons flush right, never overlap the filters
+        JPanel right = new JPanel(new FlowLayout(FlowLayout.RIGHT, GAP_SM, 0));
+        right.setOpaque(false);
+
+        btnDelete         = createStyledButton(safeGet("btn.delete", "Eliminar"), "danger");
+        btnClearCompleted = createStyledButton(safeGet("btn.clear",   "Limpiar"), "success");
+        btnDelete.setToolTipText(lang.get("tooltip.btn.delete"));
+        btnClearCompleted.setToolTipText(lang.get("tooltip.btn.clear"));
         btnDelete.addActionListener(e -> onDeleteTask());
         btnClearCompleted.addActionListener(e -> onClearCompleted());
 
-        filterPanel.add(btnFilterAll);
-        filterPanel.add(btnFilterPending);
-        filterPanel.add(btnFilterCompleted);
-        filterPanel.add(Box.createHorizontalStrut(20));
-        filterPanel.add(btnDelete);
-        filterPanel.add(btnClearCompleted);
+        right.add(btnDelete);
+        right.add(btnClearCompleted);
 
+        filterPanel.add(left,  BorderLayout.WEST);
+        filterPanel.add(right, BorderLayout.EAST);
         return filterPanel;
     }
 
-    private JButton createFilterButton(String text, String filter) {
-        JButton btn = new JButton(text);
-        btn.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-        btn.setFocusPainted(false);
+    private FlatButton createFilterButton(String text, String filter) {
+        boolean active = activeFilter.equals(filter);
+        Color bg   = active ? theme.getBackgroundButton()  : theme.getBackgroundPanel();
+        Color fg   = active ? theme.getTextButton()        : theme.getTextPrimary();
+        Font  font = active ? theme.getFontBold()          : theme.getFontNormal();
+        FlatButton btn = new FlatButton(text, bg, fg, font, BTN_HEIGHT, RADIUS);
+        btn.setOutlined(!active, theme.getBorder());
+        btn.setToolTipText(switch (filter) {
+            case "pending"   -> lang.get("tooltip.filter.pending");
+            case "completed" -> lang.get("tooltip.filter.completed");
+            default          -> lang.get("tooltip.filter.all");
+        });
         btn.addActionListener(e -> {
             activeFilter = filter;
-            logger.trace("Filtro seleccionado: " + filter.toUpperCase());
+            logger.trace("Filtro: " + filter.toUpperCase());
+            styleFilterFlatButton(btnFilterAll,       "all");
+            styleFilterFlatButton(btnFilterPending,   "pending");
+            styleFilterFlatButton(btnFilterCompleted, "completed");
             refreshTaskList();
         });
         return btn;
@@ -240,143 +257,122 @@ public class MainWindow extends JFrame {
     private JScrollPane buildTaskArea() {
         taskListPanel = new JPanel();
         taskListPanel.setLayout(new BoxLayout(taskListPanel, BoxLayout.Y_AXIS));
+        taskListPanel.setBorder(new EmptyBorder(GAP_SM, 0, GAP_SM, 0));
 
         scrollPane = new JScrollPane(taskListPanel);
-        scrollPane.setPreferredSize(new Dimension(500, 400));
         scrollPane.setBorder(null);
-        scrollPane.getVerticalScrollBar().setUnitIncrement(16);
+        scrollPane.setOpaque(false);
+        scrollPane.getViewport().setOpaque(false);
+        scrollPane.getVerticalScrollBar().setUnitIncrement(20);
+        scrollPane.getVerticalScrollBar().putClientProperty("JScrollBar.showButtons", false);
+        scrollPane.setHorizontalScrollBarPolicy(ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
         return scrollPane;
     }
 
     private JPanel buildStatsPanel() {
-        JPanel panel = new JPanel(new FlowLayout(FlowLayout.CENTER, 24, 10));
+        JPanel panel = new JPanel(new FlowLayout(FlowLayout.CENTER, PADDING_H, 10));
         panel.setOpaque(false);
-        panel.setBorder(new EmptyBorder(8, 20, 12, 20));
+        panel.setBorder(new EmptyBorder(GAP_SM, PADDING_H, GAP_MD, PADDING_H));
 
         lblTotal     = new JLabel();
         lblPending   = new JLabel();
         lblCompleted = new JLabel();
 
         panel.add(lblTotal);
-        panel.add(new JLabel("|"));
+        panel.add(new JLabel("·"));
         panel.add(lblPending);
-        panel.add(new JLabel("|"));
+        panel.add(new JLabel("·"));
         panel.add(lblCompleted);
-
         return panel;
     }
+
+    // ══════════════════════════════════════════════════════════════════════
+    //  Event handlers
+    // ══════════════════════════════════════════════════════════════════════
 
     private void onAddTask() {
         String title = inputField.getText().trim();
         if (title.isEmpty()) {
-            JOptionPane.showMessageDialog(this, lang.get("msg.empty.task"), lang.get("msg.warning.title"), JOptionPane.WARNING_MESSAGE);
-            logger.warning("[USER_ACTION] Intento de agregar tarea vac\u00eda.");
+            showWarning(lang.get("msg.empty.task"));
+            logger.warning("[USER_ACTION] Intento de agregar tarea vacía.");
             return;
         }
-
         try {
             service.addTask(title);
-            logger.info(lang.format("msg.task.added", title));
             inputField.setText("");
+            animateAdd();
             refreshTaskList();
-        } catch (IllegalArgumentException e) {
-            logger.logError("Error al agregar tarea", e);
-            JOptionPane.showMessageDialog(this, e.getMessage(), lang.get("msg.error.title"), JOptionPane.ERROR_MESSAGE);
+        } catch (IllegalArgumentException ex) {
+            logger.logError("Error al agregar tarea", ex);
+            showError(ex.getMessage());
         }
     }
 
     private void onDeleteTask() {
         TaskItemPanel selected = getSelectedTaskPanel();
         if (selected == null) {
-            JOptionPane.showMessageDialog(this, lang.get("msg.no.selection"), lang.get("msg.warning.title"), JOptionPane.WARNING_MESSAGE);
-            logger.warning("[USER_ACTION] Intento de eliminar sin selecci\u00f3n.");
+            showWarning(lang.get("msg.no.selection"));
+            logger.warning("[USER_ACTION] Intento de eliminar sin selección.");
             return;
         }
-
         int confirm = JOptionPane.showConfirmDialog(
-            this,
-            lang.get("msg.confirm.delete"),
-            lang.get("msg.confirm.title"),
-            JOptionPane.YES_NO_OPTION
+                this,
+                lang.get("msg.confirm.delete"),
+                lang.get("msg.confirm.title"),
+                JOptionPane.YES_NO_OPTION,
+                JOptionPane.WARNING_MESSAGE
         );
-
         if (confirm == JOptionPane.YES_OPTION) {
-            String deletedTitle = selected.getTaskTitle();
-
             service.deleteTask(selected.getTaskId());
-            logger.info(lang.format("msg.task.deleted", deletedTitle));
-
             refreshTaskList();
         }
     }
 
     private void onClearCompleted() {
         int removed = service.clearCompleted();
-        if (removed == 0) {
-            logger.info("[USER_ACTION] No hab\u00eda tareas completadas para limpiar.");
-        }
+        if (removed == 0) logger.info("[USER_ACTION] No había tareas completadas para limpiar.");
         refreshTaskList();
     }
 
     private void onThemeChanged() {
-        if (updatingControls) return;
-        int idx = comboTheme.getSelectedIndex();
-        if (idx < 0 || idx >= themeCodes.size()) return;
-        String themeKey = themeCodes.get(idx);
-        if (themeKey.equals(config.getTheme())) return;
+        String themeKey = comboTheme.getSelectedIndex() == 0 ? "light" : "dark";
         config.setTheme(themeKey);
         theme.reload();
         applyTheme();
         repaint();
     }
 
-    private void onFontChanged() {
-        if (updatingControls) return;
-        config.setFontFamily((String) comboFontFamily.getSelectedItem());
-        String sizeStr = (String) comboFontSize.getSelectedItem();
-        if (sizeStr != null) {
-            config.setFontSize(Integer.parseInt(sizeStr));
-        }
-        theme.reload();
-        applyTheme();
-    }
-
     private void onLanguageChanged() {
-        if (updatingControls) return;
-
-        String langKey = getSelectedLanguageCode();
-
+        String langKey = comboLang.getSelectedIndex() == 0 ? "es" : "en";
         config.setLanguage(langKey);
         lang.reload();
-
         refreshTexts();
         refreshTaskList();
     }
+
+    // ══════════════════════════════════════════════════════════════════════
+    //  List refresh & empty state
+    // ══════════════════════════════════════════════════════════════════════
 
     private void refreshTaskList() {
         long start = System.nanoTime();
         taskListPanel.removeAll();
 
-        List<Task> tasks;
-        tasks = switch (activeFilter) {
-            case "pending" -> service.getPendingTasks();
+        List<Task> tasks = switch (activeFilter) {
+            case "pending"   -> service.getPendingTasks();
             case "completed" -> service.getCompletedTasks();
-            default -> service.getAllTasks();
+            default          -> service.getAllTasks();
         };
 
         if (tasks.isEmpty()) {
-            JLabel empty = new JLabel("\u2014", SwingConstants.CENTER);
-            empty.setFont(theme.getFontSmall());
-            empty.setForeground(theme.getTextSecondary());
-            empty.setAlignmentX(Component.CENTER_ALIGNMENT);
-            empty.setBorder(new EmptyBorder(40, 0, 0, 0));
-            taskListPanel.add(empty);
+            taskListPanel.add(buildEmptyState());
         } else {
             for (Task task : tasks) {
                 TaskItemPanel item = new TaskItemPanel(task);
-                item.setMaximumSize(new Dimension(Integer.MAX_VALUE, 52));
+                item.setMaximumSize(new Dimension(Integer.MAX_VALUE, ROW_HEIGHT + 4));
+                item.setAlignmentX(Component.LEFT_ALIGNMENT);
                 taskListPanel.add(item);
-                taskListPanel.add(Box.createVerticalStrut(4));
+                taskListPanel.add(Box.createVerticalStrut(GAP_SM));
             }
         }
 
@@ -384,69 +380,102 @@ public class MainWindow extends JFrame {
         applyThemeToTaskList();
         taskListPanel.revalidate();
         taskListPanel.repaint();
+
         long elapsed = (System.nanoTime() - start) / 1_000_000;
-        if (elapsed > 50) logger.debug("refreshTaskList tom\u00f3 " + elapsed + "ms (" + tasks.size() + " tareas)");
+        if (elapsed > 50) logger.debug("refreshTaskList tomó " + elapsed + "ms (" + tasks.size() + " tareas)");
+    }
+
+    /**
+     * Builds the "no tasks" placeholder.
+     * Uses {@link #safeGet} so the string never renders as "[label.empty]"
+     * even when the i18n bundle does not contain the key yet.
+     */
+    private JPanel buildEmptyState() {
+        JPanel panel = new JPanel();
+        panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
+        panel.setOpaque(false);
+        panel.setAlignmentX(Component.CENTER_ALIGNMENT);
+        panel.setBorder(new EmptyBorder(48, 0, 0, 0));
+
+        JLabel icon = new JLabel("✓");
+        icon.setFont(new Font("Segoe UI Symbol", Font.PLAIN, 32));
+        icon.setAlignmentX(Component.CENTER_ALIGNMENT);
+        icon.setForeground(theme.getTextSecondary());
+
+        JLabel msg = new JLabel(safeGet("label.empty", "Sin tareas por aquí"));
+        msg.setFont(theme.getFontSmall());
+        msg.setForeground(theme.getTextSecondary());
+        msg.setAlignmentX(Component.CENTER_ALIGNMENT);
+        msg.setBorder(new EmptyBorder(GAP_MD, 0, 0, 0));
+
+        panel.add(icon);
+        panel.add(msg);
+        return panel;
     }
 
     private void updateStats() {
-        lblTotal.setText(lang.get("label.tasks.total") + " " + service.countTotal());
+        lblTotal.setText(lang.get("label.tasks.total")     + " " + service.countTotal());
         lblPending.setText(lang.get("label.tasks.pending") + " " + service.countPending());
         lblCompleted.setText(lang.get("label.tasks.completed") + " " + service.countCompleted());
-
-        lblTotal.setFont(theme.getFontSmall());
-        lblPending.setFont(theme.getFontSmall());
-        lblCompleted.setFont(theme.getFontSmall());
-
-        lblTotal.setForeground(theme.getTextSecondary());
-        lblPending.setForeground(theme.getTextSecondary());
-        lblCompleted.setForeground(theme.getTextSecondary());
+        for (JLabel lbl : new JLabel[]{lblTotal, lblPending, lblCompleted}) {
+            lbl.setFont(theme.getFontSmall());
+            lbl.setForeground(theme.getTextSecondary());
+        }
     }
+
+    // ══════════════════════════════════════════════════════════════════════
+    //  Text refresh (i18n)
+    // ══════════════════════════════════════════════════════════════════════
 
     private void refreshTexts() {
         setTitle(lang.get("app.title"));
-        headerTitle.setText(lang.get("app.header.title"));
+        headerTitle.setText(safeGet("app.header.title", "Mis Tareas"));
+        lblTheme.setText(safeGet("label.theme", "Tema"));
+        lblLang.setText(safeGet("label.language", "Idioma"));
 
-        lblTheme.setText(lang.get("label.theme"));
-        lblLang.setText(lang.get("label.language"));
-        lblFont.setText(lang.get("label.font"));
+        comboTheme.setItems(new String[]{
+                safeGet("option.theme.light", "Claro"), safeGet("option.theme.dark", "Oscuro")
+        });
+        comboTheme.setSelectedIndex("dark".equals(config.getTheme()) ? 1 : 0);
 
-        updatingControls = true;
+        comboLang.setItems(new String[]{
+                safeGet("option.lang.es", "Español"), safeGet("option.lang.en", "English")
+        });
+        comboLang.setSelectedIndex("en".equals(config.getLanguage()) ? 1 : 0);
 
-        try {
-            String currentTheme = config.getTheme();
-            comboTheme.removeAllItems();
-            themeCodes = theme.getAvailableThemes();
-            themeCodes.forEach(code -> comboTheme.addItem(theme.getThemeDisplay(code)));
-            int themeIdx = themeCodes.indexOf(currentTheme);
-            if (themeIdx >= 0) comboTheme.setSelectedIndex(themeIdx);
+        btnAdd.setText(safeGet("btn.add", "Agregar"));
+        btnDelete.setText(safeGet("btn.delete", "Eliminar"));
+        btnClearCompleted.setText(safeGet("btn.clear", "Limpiar"));
+        btnFilterAll.setText(safeGet("filter.all", "Todas"));
+        btnFilterPending.setText(safeGet("filter.pending", "Pendientes"));
+        btnFilterCompleted.setText(safeGet("filter.completed", "Completadas"));
 
-            comboLang.setModel(new DefaultComboBoxModel<>(getLanguageOptions()));
-            comboLang.setSelectedIndex(getLanguageIndex(config.getLanguage()));
-        } finally {
-            updatingControls = false;
-        }
+        if (inputField instanceof RoundTextField rt)
+            rt.setPlaceholder(safeGet("input.placeholder", "Nueva tarea…"));
 
-        comboFontFamily.setSelectedItem(theme.getFontNormal().getFamily());
-        comboFontSize.setSelectedItem(String.valueOf(theme.getFontNormal().getSize()));
-
-        btnAdd.setText(lang.get("btn.add"));
-        btnDelete.setText(lang.get("btn.delete"));
-        btnClearCompleted.setText(lang.get("btn.clear.completed"));
-
-        btnFilterAll.setText(lang.get("filter.all"));
-        btnFilterPending.setText(lang.get("filter.pending"));
-        btnFilterCompleted.setText(lang.get("filter.completed"));
-
-        inputField.putClientProperty("hint", lang.get("input.placeholder"));
+        comboTheme.setToolTipText(lang.get("tooltip.theme"));
+        comboLang.setToolTipText(lang.get("tooltip.language"));
+        btnAdd.setToolTipText(lang.get("tooltip.btn.add"));
+        btnDelete.setToolTipText(lang.get("tooltip.btn.delete"));
+        btnClearCompleted.setToolTipText(lang.get("tooltip.btn.clear"));
 
         updateStats();
     }
 
+    // ══════════════════════════════════════════════════════════════════════
+    //  Theme application
+    // ══════════════════════════════════════════════════════════════════════
+
     private void applyTheme() {
         long start = System.nanoTime();
+
         rootPanel.setBackground(theme.getBackground());
 
         headerPanel.setBackground(theme.getBackgroundHeader());
+        headerPanel.setBorder(BorderFactory.createCompoundBorder(
+                new MatteBorder(0, 0, 1, 0, theme.getBorder()),
+                new EmptyBorder(PADDING_V, PADDING_H, PADDING_V, PADDING_H)
+        ));
         headerTitle.setForeground(theme.getTextHeader());
         headerTitle.setFont(theme.getFontTitle());
 
@@ -456,28 +485,26 @@ public class MainWindow extends JFrame {
             inputField.setFont(theme.getFontNormal());
             inputField.setCaretColor(theme.getTextPrimary());
             inputField.setBorder(BorderFactory.createCompoundBorder(
-                new LineBorder(theme.getBorder(), 1, true),
-                new EmptyBorder(6, 12, 6, 12)
+                    new LineBorder(theme.getBorder(), 1, true),
+                    new EmptyBorder(0, 12, 0, 12)
             ));
         }
 
-        if (btnAdd != null)            styleButton(btnAdd,            theme.getBackgroundButton());
-        if (btnDelete != null)         styleButton(btnDelete,         theme.getBackgroundButtonDanger());
-        if (btnClearCompleted != null) styleButton(btnClearCompleted, theme.getBackgroundButtonSuccess());
+        if (btnAdd            != null) { btnAdd.setColors(theme.getBackgroundButton(), theme.getTextButton()); btnAdd.setFont(theme.getFontNormal()); }
+        if (btnDelete         != null) { btnDelete.setColors(theme.getBackgroundButtonDanger(), theme.getTextButton()); btnDelete.setFont(theme.getFontNormal()); }
+        if (btnClearCompleted != null) { btnClearCompleted.setColors(theme.getBackgroundButtonSuccess(), theme.getTextButton()); btnClearCompleted.setFont(theme.getFontNormal()); }
 
-        styleFilterButton(btnFilterAll,       "all");
-        styleFilterButton(btnFilterPending,   "pending");
-        styleFilterButton(btnFilterCompleted, "completed");
-
-        if (lblTheme != null) styleLabel(lblTheme);
-        if (lblLang  != null) styleLabel(lblLang);
-        if (lblFont  != null) styleLabel(lblFont);
+        styleFilterFlatButton(btnFilterAll,       "all");
+        styleFilterFlatButton(btnFilterPending,   "pending");
+        styleFilterFlatButton(btnFilterCompleted, "completed");
 
         if (comboTheme != null) styleCombo(comboTheme);
         if (comboLang  != null) styleCombo(comboLang);
-        if (comboFontFamily != null) styleCombo(comboFontFamily);
-        if (comboFontSize   != null) styleCombo(comboFontSize);
+        if (comboTheme != null) comboTheme.repaint();
+        if (comboLang  != null) comboLang.repaint();
 
+        if (lblTheme != null) { lblTheme.setForeground(theme.getTextSecondary()); lblTheme.setFont(theme.getFontSmall()); }
+        if (lblLang  != null) { lblLang.setForeground(theme.getTextSecondary());  lblLang.setFont(theme.getFontSmall()); }
         if (filterPanel != null) filterPanel.setBackground(theme.getBackground());
 
         if (scrollPane != null) {
@@ -487,154 +514,628 @@ public class MainWindow extends JFrame {
 
         applyThemeToTaskList();
         long elapsed = (System.nanoTime() - start) / 1_000_000;
-        if (elapsed > 50) logger.debug("applyTheme tom\u00f3 " + elapsed + "ms");
+        if (elapsed > 50) logger.debug("applyTheme tomó " + elapsed + "ms");
     }
 
     private void applyThemeToTaskList() {
         if (taskListPanel == null) return;
         taskListPanel.setBackground(theme.getBackground());
         for (Component c : taskListPanel.getComponents()) {
-            if (c instanceof TaskItemPanel taskItemPanel) {
-                taskItemPanel.applyTheme();
-            }
+            if (c instanceof TaskItemPanel tip) tip.applyTheme();
         }
     }
 
-    private void styleButton(JButton btn, Color bg) {
-        btn.setBackground(bg);
-        btn.setForeground(theme.getTextButton());
-        btn.setFont(theme.getFontNormal());
-        btn.setBorder(new EmptyBorder(8, 16, 8, 16));
-        btn.setFocusPainted(false);
-        btn.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-        btn.setOpaque(true);
-    }
+    // ══════════════════════════════════════════════════════════════════════
+    //  Styling helpers
+    // ══════════════════════════════════════════════════════════════════════
 
-    private void styleFilterButton(JButton btn, String filter) {
+    private void styleFilterFlatButton(FlatButton btn, String filter) {
         if (btn == null) return;
         boolean active = activeFilter.equals(filter);
-        btn.setBackground(active ? theme.getBackgroundButton() : theme.getBackgroundPanel());
-        btn.setForeground(active ? theme.getTextButton() : theme.getTextPrimary());
+        btn.setColors(
+                active ? theme.getBackgroundButton()  : theme.getBackgroundPanel(),
+                active ? theme.getTextButton()        : theme.getTextPrimary()
+        );
         btn.setFont(active ? theme.getFontBold() : theme.getFontNormal());
-        btn.setBorder(BorderFactory.createCompoundBorder(
-            new LineBorder(theme.getBorder(), 1, true),
-            new EmptyBorder(5, 12, 5, 12)
-        ));
-        btn.setFocusPainted(false);
-        btn.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-        btn.setOpaque(true);
+        btn.setOutlined(!active, theme.getBorder());
     }
 
-    private void styleLabel(JLabel label) {
-        label.setForeground(theme.getTextPrimary());
-        label.setFont(theme.getFontNormal());
-    }
+    // styleButton / styleFilterButton / addHoverEffect removed —
+    // FlatButton handles its own painting (see inner class at bottom).
 
-    private void styleCombo(JComboBox<String> combo) {
-        combo.setBackground(theme.getBackgroundInput());
-        combo.setForeground(theme.getTextPrimary());
+    private void styleCombo(FlatCombo combo) {
+        combo.setColors(theme.getBackgroundInput(), theme.getTextPrimary(), theme.getBorder());
         combo.setFont(theme.getFontSmall());
     }
 
-    private JButton createButton(String text, String type) {
-        JButton btn = new JButton(text);
-        Color bg;
-        bg = switch (type) {
-            case "danger" -> theme.getBackgroundButtonDanger();
+    private FlatButton createStyledButton(String text, String type) {
+        Color bg = switch (type) {
+            case "danger"  -> theme.getBackgroundButtonDanger();
             case "success" -> theme.getBackgroundButtonSuccess();
-            default -> theme.getBackgroundButton();
+            default        -> theme.getBackgroundButton();
         };
-        styleButton(btn, bg);
-        return btn;
+        return new FlatButton(text, bg, theme.getTextButton(), theme.getFontNormal(), BTN_HEIGHT, RADIUS);
+    }
+
+    private FlatCombo buildStyledCombo(String[] items) {
+        FlatCombo combo = new FlatCombo(items, theme.getBackgroundInput(),
+                theme.getTextPrimary(), theme.getBorder(),
+                theme.getFontSmall(), BTN_HEIGHT - 2, RADIUS);
+        return combo;
+    }
+
+    // ══════════════════════════════════════════════════════════════════════
+    //  Misc helpers
+    // ══════════════════════════════════════════════════════════════════════
+
+    private void showWarning(String msg) {
+        JOptionPane.showMessageDialog(this, msg, lang.get("msg.warning.title"), JOptionPane.WARNING_MESSAGE);
+    }
+
+    private void showError(String msg) {
+        JOptionPane.showMessageDialog(this, msg, lang.get("msg.error.title"), JOptionPane.ERROR_MESSAGE);
+    }
+
+    private void animateAdd() {
+        Color accent = theme.getBackgroundButton();
+        inputField.setBorder(BorderFactory.createCompoundBorder(
+                new LineBorder(accent, 2, true), new EmptyBorder(0, 12, 0, 12)
+        ));
+        Timer t = new Timer(220, e -> inputField.setBorder(BorderFactory.createCompoundBorder(
+                new LineBorder(theme.getBorder(), 1, true), new EmptyBorder(0, 12, 0, 12)
+        )));
+        t.setRepeats(false);
+        t.start();
+    }
+
+    /**
+     * Safe i18n lookup with hard-coded fallback.
+     * Returns {@code fallback} when the key is absent or resolves to the
+     * bracketed placeholder that LanguageManager emits (e.g. "[label.empty]").
+     */
+    private String safeGet(String key, String fallback) {
+        String v = lang.get(key);
+        if (v == null || v.isBlank() || v.equals("[" + key + "]")) return fallback;
+        return v;
     }
 
     private TaskItemPanel getSelectedTaskPanel() {
         for (Component c : taskListPanel.getComponents()) {
-            if (c instanceof TaskItemPanel && ((TaskItemPanel) c).isSelected()) {
-                return (TaskItemPanel) c;
-            }
+            if (c instanceof TaskItemPanel tip && tip.isSelected()) return tip;
         }
         return null;
     }
 
+    // ══════════════════════════════════════════════════════════════════════
+    //  Inner: FlatButton  — fully custom-painted; ignores macOS Aqua L&F
+    // ══════════════════════════════════════════════════════════════════════
+
+    /**
+     * A {@link JButton} subclass that paints itself entirely via
+     * {@link #paintComponent}, bypassing the macOS Aqua (and any other)
+     * Look-and-Feel renderer.  This guarantees that background colour,
+     * foreground, border radius and hover/press states are respected on
+     * every platform.
+     *
+     * <p>Usage mirrors a normal JButton:
+     * <pre>
+     *   FlatButton btn = new FlatButton("Click me", bgColor, fgColor, font, height, radius);
+     *   btn.addActionListener(e -> ...);
+     * </pre>
+     */
+    private static final class FlatButton extends JButton {
+
+        private Color  bg;
+        private Color  fg;
+        private Color  borderColor;   // null → no outline, just filled
+        private int    arc;
+        private boolean outlined     = false;
+        private boolean initialized  = false; // guard against Nimbus calling setFont before UI is ready
+
+        // transient paint state
+        private boolean hovered  = false;
+        private boolean pressed  = false;
+
+        FlatButton(String text, Color bg, Color fg, Font font, int height, int arc) {
+            super(text);
+            this.bg  = bg;
+            this.fg  = fg;
+            this.arc = arc;
+
+            setFont(font);
+            setFocusPainted(false);
+            setBorderPainted(false);
+            setContentAreaFilled(false);   // ← tells Swing not to fill; we do it
+            setOpaque(false);
+            setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+
+            // size: respect preferred width from text, fixed height
+            Insets pad = new Insets(0, 16, 0, 16);
+            setBorder(new EmptyBorder(pad));
+            FontMetrics fm = getFontMetrics(font);
+            int pref = fm.stringWidth(text) + pad.left + pad.right + 8;
+            setPreferredSize(new Dimension(pref, height));
+            setMinimumSize(new Dimension(pref, height));
+
+            addMouseListener(new MouseAdapter() {
+                @Override public void mouseEntered(MouseEvent e) { hovered = true;  repaint(); }
+                @Override public void mouseExited (MouseEvent e) { hovered = false; pressed = false; repaint(); }
+                @Override public void mousePressed(MouseEvent e) { pressed = true;  repaint(); }
+                @Override public void mouseReleased(MouseEvent e){ pressed = false; repaint(); }
+            });
+
+            initialized = true;
+            // Now that the UI is fully set up, do the first proper size measurement.
+            resizeToText(getText(), getFont());
+        }
+
+        /** Change fill + text colours at runtime (theme switch). */
+        void setColors(Color background, Color foreground) {
+            this.bg = background;
+            this.fg = foreground;
+            repaint();
+        }
+
+        /**
+         * When {@code outlined} is true the button renders with a transparent
+         * fill and a 1-px border in {@code borderCol}.  Used for inactive
+         * filter buttons.
+         */
+        void setOutlined(boolean outlined, Color borderCol) {
+            this.outlined    = outlined;
+            this.borderColor = borderCol;
+            repaint();
+        }
+
+        @Override
+        public void setFont(Font f) {
+            super.setFont(f);
+            if (initialized && f != null && getText() != null)
+                resizeToText(getText(), f);
+        }
+
+        @Override
+        public void setText(String text) {
+            super.setText(text);
+            if (initialized && text != null && getFont() != null)
+                resizeToText(text, getFont());
+        }
+
+        /** Central size measurement — called only after the component is fully initialised. */
+        private void resizeToText(String text, Font f) {
+            FontMetrics fm = getFontMetrics(f);
+            if (fm == null) return;
+            int pref = fm.stringWidth(text) + 32 + 8;
+            int h    = getPreferredSize().height;
+            setPreferredSize(new Dimension(pref, h));
+            setMinimumSize  (new Dimension(pref, h));
+        }
+
+        @Override
+        protected void paintComponent(Graphics g) {
+            int w = getWidth();
+            int h = getHeight();
+
+            Graphics2D g2 = (Graphics2D) g.create();
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING,        RenderingHints.VALUE_ANTIALIAS_ON);
+            g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING,   RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+            g2.setRenderingHint(RenderingHints.KEY_RENDERING,           RenderingHints.VALUE_RENDER_QUALITY);
+
+            // ── Background fill ─────────────────────────────────────────
+            Color fill;
+            if (outlined) {
+                fill = pressed ? darken(bg, 0.08f)
+                        : hovered ? darken(bg, 0.04f)
+                        : bg;
+            } else {
+                fill = pressed ? darken(bg, 0.15f)
+                        : hovered ? brighten(bg, 0.12f)
+                        : bg;
+            }
+            g2.setColor(fill);
+            g2.fillRoundRect(0, 0, w - 1, h - 1, arc * 2, arc * 2);
+
+            // ── Border (outline mode only) ───────────────────────────────
+            if (outlined && borderColor != null) {
+                g2.setColor(borderColor);
+                g2.setStroke(new BasicStroke(1f));
+                g2.drawRoundRect(0, 0, w - 1, h - 1, arc * 2, arc * 2);
+            }
+
+            // ── Label ────────────────────────────────────────────────────
+            g2.setFont(getFont());
+            g2.setColor(fg);
+            FontMetrics fm = g2.getFontMetrics();
+            int tx = (w - fm.stringWidth(getText())) / 2;
+            int ty = (h - fm.getHeight()) / 2 + fm.getAscent();
+            g2.drawString(getText(), tx, ty);
+
+            g2.dispose();
+        }
+
+        // ── Colour math helpers ──────────────────────────────────────────
+        private static Color brighten(Color c, float factor) {
+            int r = Math.min(255, (int)(c.getRed()   + (255 - c.getRed())   * factor));
+            int g = Math.min(255, (int)(c.getGreen() + (255 - c.getGreen()) * factor));
+            int b = Math.min(255, (int)(c.getBlue()  + (255 - c.getBlue())  * factor));
+            return new Color(r, g, b, c.getAlpha());
+        }
+
+        private static Color darken(Color c, float factor) {
+            int r = Math.max(0, (int)(c.getRed()   * (1 - factor)));
+            int g = Math.max(0, (int)(c.getGreen() * (1 - factor)));
+            int b = Math.max(0, (int)(c.getBlue()  * (1 - factor)));
+            return new Color(r, g, b, c.getAlpha());
+        }
+    }
+
+    // ══════════════════════════════════════════════════════════════════════
+    //  Inner: FlatCombo — custom-painted dropdown; bypasses Nimbus/Aqua
+    // ══════════════════════════════════════════════════════════════════════
+
+    /**
+     * A fully custom-painted combo box that ignores the platform L&F renderer.
+     * Renders as a pill with the selected item and a small chevron arrow.
+     * The popup still uses the native JPopupMenu for accessibility.
+     */
+    private static final class FlatCombo extends JPanel {
+
+        private String[]  items;
+        private int       selectedIndex = 0;
+        private Color     bg;
+        private Color     fg;
+        private Color     borderCol;
+        private int       arc;
+        private boolean   hovered = false;
+        private boolean   popupOpen = false;
+
+        private final JPopupMenu popup = new JPopupMenu();
+        private final ButtonGroup group = new ButtonGroup();
+
+        // Listeners registered externally via addActionListener
+        private final java.util.List<java.awt.event.ActionListener> listeners = new java.util.ArrayList<>();
+
+        FlatCombo(String[] items, Color bg, Color fg, Color border, Font font, int height, int arc) {
+            this.items     = items;
+            this.bg        = bg;
+            this.fg        = fg;
+            this.borderCol = border;
+            this.arc       = arc;
+
+            setOpaque(false);
+            setFont(font);
+            setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+            setPreferredSize(new Dimension(measureWidth(items, font), height));
+            setMinimumSize(getPreferredSize());
+
+            rebuildPopup();
+
+            addMouseListener(new MouseAdapter() {
+                @Override public void mouseEntered(MouseEvent e) { hovered = true;  repaint(); }
+                @Override public void mouseExited (MouseEvent e) { hovered = false; repaint(); }
+                @Override public void mousePressed(MouseEvent e) { showPopup(); }
+            });
+
+            popup.addPopupMenuListener(new javax.swing.event.PopupMenuListener() {
+                public void popupMenuWillBecomeVisible(javax.swing.event.PopupMenuEvent e)   { popupOpen = true;  repaint(); }
+                public void popupMenuWillBecomeInvisible(javax.swing.event.PopupMenuEvent e) { popupOpen = false; repaint(); }
+                public void popupMenuCanceled(javax.swing.event.PopupMenuEvent e)            { popupOpen = false; repaint(); }
+            });
+        }
+
+        // ── Public API ───────────────────────────────────────────────────
+
+        void setSelectedIndex(int idx) {
+            if (idx >= 0 && idx < items.length) {
+                selectedIndex = idx;
+                syncGroup();
+                repaint();
+            }
+        }
+
+        int getSelectedIndex() { return selectedIndex; }
+
+        void setItems(String[] newItems) {
+            this.items = newItems;
+            selectedIndex = Math.min(selectedIndex, newItems.length - 1);
+            setPreferredSize(new Dimension(measureWidth(newItems, getFont()), getPreferredSize().height));
+            rebuildPopup();
+            repaint();
+        }
+
+        void setColors(Color background, Color foreground, Color border) {
+            this.bg        = background;
+            this.fg        = foreground;
+            this.borderCol = border;
+            repaint();
+        }
+
+        void addActionListener(java.awt.event.ActionListener l) { listeners.add(l); }
+        @Override public void setToolTipText(String tip) { super.setToolTipText(tip); }
+
+        // ── Internal ─────────────────────────────────────────────────────
+
+        private void showPopup() {
+            popup.show(this, 0, getHeight() + 2);
+        }
+
+        private void rebuildPopup() {
+            popup.removeAll();
+            group.clearSelection();
+            popup.setBackground(bg);
+            popup.setBorder(BorderFactory.createCompoundBorder(
+                    new LineBorder(borderCol, 1, true),
+                    new EmptyBorder(4, 0, 4, 0)
+            ));
+
+            for (int i = 0; i < items.length; i++) {
+                final int idx = i;
+                JMenuItem mi = new JMenuItem(items[i]);
+                mi.setFont(getFont());
+                mi.setForeground(fg);
+                mi.setBackground(bg);
+                mi.setOpaque(true);
+                mi.setBorder(new EmptyBorder(6, 14, 6, 14));
+                mi.addActionListener(e -> {
+                    selectedIndex = idx;
+                    repaint();
+                    fireActionPerformed();
+                });
+                popup.add(mi);
+            }
+        }
+
+        private void syncGroup() { /* nothing — visual state drives rendering */ }
+
+        private void fireActionPerformed() {
+            java.awt.event.ActionEvent ev = new java.awt.event.ActionEvent(
+                    this, java.awt.event.ActionEvent.ACTION_PERFORMED, "comboChanged");
+            for (java.awt.event.ActionListener l : listeners) l.actionPerformed(ev);
+        }
+
+        private static int measureWidth(String[] items, Font font) {
+            if (font == null || items == null || items.length == 0) return 80;
+            // Use a temporary component to get FontMetrics
+            Canvas c = new Canvas();
+            FontMetrics fm = c.getFontMetrics(font);
+            int maxW = 0;
+            for (String s : items) maxW = Math.max(maxW, fm.stringWidth(s));
+            return maxW + 16 + 16 + 20; // pad-left + pad-right + chevron area
+        }
+
+        // ── Painting ─────────────────────────────────────────────────────
+
+        @Override
+        protected void paintComponent(Graphics g) {
+            int w = getWidth(), h = getHeight();
+            Graphics2D g2 = (Graphics2D) g.create();
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING,      RenderingHints.VALUE_ANTIALIAS_ON);
+            g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+
+            // ── Fill ────────────────────────────────────────────────────
+            Color fill = (hovered || popupOpen)
+                    ? new Color(Math.min(255, bg.getRed()+12),
+                    Math.min(255, bg.getGreen()+12),
+                    Math.min(255, bg.getBlue()+20), bg.getAlpha())
+                    : bg;
+            g2.setColor(fill);
+            g2.fillRoundRect(0, 0, w-1, h-1, arc*2, arc*2);
+
+            // ── Border ──────────────────────────────────────────────────
+            Color bord = (hovered || popupOpen)
+                    ? new Color(Math.min(255, borderCol.getRed()+40),
+                    Math.min(255, borderCol.getGreen()+40),
+                    Math.min(255, borderCol.getBlue()+60), 255)
+                    : borderCol;
+            g2.setColor(bord);
+            g2.setStroke(new BasicStroke(1f));
+            g2.drawRoundRect(0, 0, w-1, h-1, arc*2, arc*2);
+
+            // ── Selected text ────────────────────────────────────────────
+            g2.setFont(getFont());
+            g2.setColor(fg);
+            FontMetrics fm = g2.getFontMetrics();
+            String label = (items != null && selectedIndex < items.length) ? items[selectedIndex] : "";
+            int ty = (h - fm.getHeight()) / 2 + fm.getAscent();
+            g2.drawString(label, 12, ty);
+
+            // ── Chevron ──────────────────────────────────────────────────
+            int cx = w - 14, cy = h / 2;
+            int[] xs = { cx - 4, cx, cx + 4 };
+            int[] ys = { cy - 2, cy + 2, cy - 2 };
+            g2.setColor(new Color(fg.getRed(), fg.getGreen(), fg.getBlue(), 160));
+            g2.setStroke(new BasicStroke(1.5f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+            g2.drawPolyline(xs, ys, 3);
+
+            g2.dispose();
+        }
+    }
+
+    // ══════════════════════════════════════════════════════════════════════
+    //  Inner: RoundTextField
+    // ══════════════════════════════════════════════════════════════════════
+
+    private static final class RoundTextField extends JTextField {
+
+        private String placeholder;
+        private final int arc;
+
+        RoundTextField(String placeholder, int arc) {
+            this.placeholder = placeholder;
+            this.arc = arc;
+            setOpaque(false);
+        }
+
+        void setPlaceholder(String text) { this.placeholder = text; repaint(); }
+
+        @Override
+        protected void paintComponent(Graphics g) {
+            Graphics2D g2 = (Graphics2D) g.create();
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            g2.setColor(getBackground());
+            g2.fill(new RoundRectangle2D.Float(0, 0, getWidth() - 1, getHeight() - 1, arc * 2, arc * 2));
+            super.paintComponent(g);
+            if (getText().isEmpty() && !isFocusOwner()) {
+                g2.setColor(new Color(150, 150, 150, 160));
+                g2.setFont(getFont());
+                FontMetrics fm = g2.getFontMetrics();
+                int y = (getHeight() - fm.getHeight()) / 2 + fm.getAscent();
+                g2.drawString(placeholder, getInsets().left, y);
+            }
+            g2.dispose();
+        }
+    }
+
+    // ══════════════════════════════════════════════════════════════════════
+    //  Inner: TaskItemPanel
+    // ══════════════════════════════════════════════════════════════════════
+
     private final class TaskItemPanel extends JPanel {
 
         private final Task task;
-        private boolean selected = false;
+        private boolean    selected = false;
 
         private final JCheckBox checkbox;
         private final JLabel    titleLabel;
 
         TaskItemPanel(Task t) {
             this.task = t;
-            setLayout(new BorderLayout(10, 0));
+
+            // ── Outer layout: full-width row ─────────────────────────────
+            setLayout(new BorderLayout(0, 0));
             setBorder(BorderFactory.createCompoundBorder(
-                new LineBorder(theme.getBorder(), 1, true),
-                new EmptyBorder(8, 14, 8, 14)
+                    new LineBorder(theme.getBorder(), 1, true),
+                    new EmptyBorder(0, 14, 0, 14)
             ));
             setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+            setPreferredSize(new Dimension(0, ROW_HEIGHT));
+            setMaximumSize(new Dimension(Integer.MAX_VALUE, ROW_HEIGHT));
+            setToolTipText(task.isCompleted()
+                    ? safeGet("tooltip.task.completed", "Tarea completada")
+                    : safeGet("tooltip.task.pending",   "Tarea pendiente"));
 
+            // ── Checkbox ─────────────────────────────────────────────────
             checkbox = new JCheckBox();
             checkbox.setSelected(task.isCompleted());
             checkbox.setOpaque(false);
+            checkbox.setFocusPainted(false);
+            checkbox.setToolTipText(task.isCompleted()
+                    ? safeGet("tooltip.task.uncheck", "Marcar como pendiente")
+                    : safeGet("tooltip.task.check",   "Marcar como completada"));
             checkbox.addActionListener(e -> {
-                logger.trace("Clic en checkbox de tarea (id=" + task.getId() + ")");
-
-                boolean wasCompleted = task.isCompleted();
-
+                logger.trace("Checkbox tarea id=" + task.getId());
                 service.toggleComplete(task.getId());
-
-                if (!wasCompleted) {
-                    logger.info(lang.format("msg.task.completed", task.getTitle()));
-                }
-
                 refreshTaskList();
             });
 
-            titleLabel = new JLabel(task.getTitle());
+            // Wrap checkbox in a panel so it stays vertically centred
+            JPanel checkWrap = new JPanel(new GridBagLayout());
+            checkWrap.setOpaque(false);
+            checkWrap.add(checkbox);
 
-            add(checkbox,   BorderLayout.WEST);
+            // ── Title ─────────────────────────────────────────────────────
+            titleLabel = new JLabel(task.getTitle());
+            titleLabel.setBorder(new EmptyBorder(0, GAP_SM, 0, GAP_SM));
+
+            // ── Badge (completed only) — centred vertically via GridBagLayout
+            JPanel eastPanel = new JPanel(new GridBagLayout());
+            eastPanel.setOpaque(false);
+            eastPanel.setBorder(new EmptyBorder(0, 0, 0, 0));
+
+            if (task.isCompleted()) {
+                String badgeText = safeGet("badge.done", "Listo");
+                // Pill badge — fully custom-painted so radius can be large (50px = capsule)
+                JComponent badge = new JComponent() {
+                    {
+                        setOpaque(false);
+                        setFont(new Font(theme.getFontSmall().getFamily(), Font.BOLD, 10));
+                        setBorder(new EmptyBorder(3, 10, 3, 10));
+                    }
+                    @Override protected void paintComponent(Graphics g) {
+                        Graphics2D g2 = (Graphics2D) g.create();
+                        g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                        Color successCol = theme.getBackgroundButtonSuccess();
+                        // Translucent fill
+                        g2.setColor(new Color(successCol.getRed(), successCol.getGreen(), successCol.getBlue(), 28));
+                        g2.fillRoundRect(0, 0, getWidth()-1, getHeight()-1, getHeight(), getHeight());
+                        // Border
+                        g2.setColor(new Color(successCol.getRed(), successCol.getGreen(), successCol.getBlue(), 130));
+                        g2.setStroke(new BasicStroke(1f));
+                        g2.drawRoundRect(0, 0, getWidth()-1, getHeight()-1, getHeight(), getHeight());
+                        // Text
+                        g2.setFont(getFont());
+                        g2.setColor(successCol);
+                        FontMetrics fm = g2.getFontMetrics();
+                        Insets ins = getInsets();
+                        int tx = ins.left;
+                        int ty = ins.top + fm.getAscent();
+                        g2.drawString(badgeText, tx, ty);
+                        g2.dispose();
+                    }
+                    @Override public Dimension getPreferredSize() {
+                        FontMetrics fm = getFontMetrics(getFont());
+                        Insets ins = getInsets();
+                        int w = ins.left + fm.stringWidth(badgeText) + ins.right;
+                        int h = ins.top + fm.getHeight() + ins.bottom;
+                        return new Dimension(w, h);
+                    }
+                };
+                eastPanel.add(badge);   // GridBagLayout centres it automatically
+            }
+
+            add(checkWrap,  BorderLayout.WEST);
             add(titleLabel, BorderLayout.CENTER);
+            add(eastPanel,  BorderLayout.EAST);
 
             addMouseListener(new MouseAdapter() {
                 @Override
                 public void mouseClicked(MouseEvent e) {
-                    logger.trace("Tarea seleccionada (id=" + task.getId() + ")");
                     for (Component c : taskListPanel.getComponents()) {
-                        if (c instanceof TaskItemPanel && c != TaskItemPanel.this) {
-                            ((TaskItemPanel) c).setSelected(false);
-                        }
+                        if (c instanceof TaskItemPanel other && c != TaskItemPanel.this)
+                            other.setSelected(false);
                     }
                     setSelected(!selected);
+                    logger.trace("Tarea seleccionada id=" + task.getId());
                 }
+                @Override public void mouseEntered(MouseEvent e) { if (!selected) setHighlight(true); }
+                @Override public void mouseExited (MouseEvent e) { if (!selected) setHighlight(false); }
             });
 
             applyTheme();
         }
 
         void applyTheme() {
-            Color bg = task.isCompleted()
-                ? theme.getBackgroundItemCompleted()
-                : (selected ? theme.getBackgroundInput() : theme.getBackgroundItem());
+            Color bg = task.isCompleted() ? theme.getBackgroundItemCompleted()
+                    : selected           ? theme.getBackgroundInput()
+                    :                      theme.getBackgroundItem();
             setBackground(bg);
-
-            titleLabel.setFont(task.isCompleted()
-                ? new Font(theme.getFontNormal().getFamily(), Font.ITALIC, theme.getFontNormal().getSize())
-                : theme.getFontNormal());
-            titleLabel.setForeground(task.isCompleted()
-                ? theme.getTextCompleted()
-                : theme.getTextPrimary());
             checkbox.setBackground(bg);
+
+            // Propagate bg to wrapper panels so no colour leaks
+            for (Component c : getComponents()) {
+                if (c instanceof JPanel p) p.setBackground(bg);
+            }
+
+            titleLabel.setForeground(task.isCompleted()
+                    ? theme.getTextCompleted()
+                    : theme.getTextPrimary());
+            titleLabel.setFont(task.isCompleted()
+                    ? new Font(theme.getFontNormal().getFamily(), Font.ITALIC, theme.getFontNormal().getSize())
+                    : theme.getFontNormal());
         }
 
-        void setSelected(boolean sel) {
-            this.selected = sel;
-            applyTheme();
+        private void setHighlight(boolean on) {
+            Color bg = on ? theme.getBackgroundInput() : theme.getBackgroundItem();
+            setBackground(bg);
+            for (Component c : getComponents()) {
+                if (c instanceof JPanel p) p.setBackground(bg);
+            }
+            checkbox.setBackground(bg);
             repaint();
         }
 
-        boolean isSelected() { return selected; }
-        String  getTaskId()  { return task.getId(); }
-        String  getTaskTitle(){ return task.getTitle(); }
+        void    setSelected(boolean sel) { this.selected = sel; applyTheme(); repaint(); }
+        boolean isSelected()             { return selected; }
+        String  getTaskId()              { return task.getId(); }
     }
 }
