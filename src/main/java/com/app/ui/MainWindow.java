@@ -46,6 +46,10 @@ public class MainWindow extends JFrame {
 
     private String activeFilter = "all";
 
+    private static final String[] LANGUAGE_CODES = {"es", "en", "fr", "pt", "de"};
+
+    private boolean updatingControls = false;
+
     public MainWindow() {
         initFrame();
         buildUI();
@@ -74,6 +78,42 @@ public class MainWindow extends JFrame {
         rootPanel.add(buildStatsPanel(), BorderLayout.SOUTH);
     }
 
+    private String[] getLanguageOptions() {
+        return new String[]{
+                lang.get("option.lang.es"),
+                lang.get("option.lang.en"),
+                lang.get("option.lang.fr"),
+                lang.get("option.lang.pt"),
+                lang.get("option.lang.de")
+        };
+    }
+
+    private int getLanguageIndex(String code) {
+        for (int i = 0; i < LANGUAGE_CODES.length; i++) {
+            if (LANGUAGE_CODES[i].equals(code)) {
+                return i;
+            }
+        }
+        return 0;
+    }
+
+    private String getSelectedLanguageCode() {
+        int index = comboLang.getSelectedIndex();
+
+        if (index < 0 || index >= LANGUAGE_CODES.length) {
+            return "es";
+        }
+
+        return LANGUAGE_CODES[index];
+    }
+
+    private String[] getThemeOptions() {
+        return new String[]{
+                lang.get("option.theme.light"),
+                lang.get("option.theme.dark")
+        };
+    }
+
     private JPanel buildHeaderPanel() {
         headerPanel = new JPanel(new BorderLayout());
         headerPanel.setBorder(new EmptyBorder(16, 20, 16, 20));
@@ -93,11 +133,8 @@ public class MainWindow extends JFrame {
         comboTheme.addActionListener(e -> onThemeChanged());
 
         lblLang = new JLabel(lang.get("label.language"));
-        comboLang = new JComboBox<>(new String[]{
-            lang.get("option.lang.es"),
-            lang.get("option.lang.en")
-        });
-        comboLang.setSelectedIndex("en".equals(config.getLanguage()) ? 1 : 0);
+        comboLang = new JComboBox<>(getLanguageOptions());
+        comboLang.setSelectedIndex(getLanguageIndex(config.getLanguage()));
         comboLang.addActionListener(e -> onLanguageChanged());
 
         configPanel.add(lblTheme);
@@ -210,25 +247,26 @@ public class MainWindow extends JFrame {
     private void onAddTask() {
         String title = inputField.getText().trim();
         if (title.isEmpty()) {
-            JOptionPane.showMessageDialog(this, lang.get("msg.empty.task"), "Aviso", JOptionPane.WARNING_MESSAGE);
+            JOptionPane.showMessageDialog(this, lang.get("msg.empty.task"), lang.get("msg.warning.title"), JOptionPane.WARNING_MESSAGE);
             logger.warning("[USER_ACTION] Intento de agregar tarea vac\u00eda.");
             return;
         }
 
         try {
             service.addTask(title);
+            logger.info(lang.format("msg.task.added", title));
             inputField.setText("");
             refreshTaskList();
         } catch (IllegalArgumentException e) {
             logger.logError("Error al agregar tarea", e);
-            JOptionPane.showMessageDialog(this, e.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+            JOptionPane.showMessageDialog(this, e.getMessage(), lang.get("msg.error.title"), JOptionPane.ERROR_MESSAGE);
         }
     }
 
     private void onDeleteTask() {
         TaskItemPanel selected = getSelectedTaskPanel();
         if (selected == null) {
-            JOptionPane.showMessageDialog(this, lang.get("msg.no.selection"), "Aviso", JOptionPane.WARNING_MESSAGE);
+            JOptionPane.showMessageDialog(this, lang.get("msg.no.selection"), lang.get("msg.warning.title"), JOptionPane.WARNING_MESSAGE);
             logger.warning("[USER_ACTION] Intento de eliminar sin selecci\u00f3n.");
             return;
         }
@@ -241,7 +279,11 @@ public class MainWindow extends JFrame {
         );
 
         if (confirm == JOptionPane.YES_OPTION) {
+            String deletedTitle = selected.getTaskTitle();
+
             service.deleteTask(selected.getTaskId());
+            logger.info(lang.format("msg.task.deleted", deletedTitle));
+
             refreshTaskList();
         }
     }
@@ -255,7 +297,10 @@ public class MainWindow extends JFrame {
     }
 
     private void onThemeChanged() {
+        if (updatingControls) return;
+
         String themeKey = comboTheme.getSelectedIndex() == 0 ? "light" : "dark";
+
         config.setTheme(themeKey);
         theme.reload();
         applyTheme();
@@ -263,9 +308,13 @@ public class MainWindow extends JFrame {
     }
 
     private void onLanguageChanged() {
-        String langKey = comboLang.getSelectedIndex() == 0 ? "es" : "en";
+        if (updatingControls) return;
+
+        String langKey = getSelectedLanguageCode();
+
         config.setLanguage(langKey);
         lang.reload();
+
         refreshTexts();
         refreshTaskList();
     }
@@ -322,25 +371,32 @@ public class MainWindow extends JFrame {
     private void refreshTexts() {
         setTitle(lang.get("app.title"));
         headerTitle.setText(lang.get("app.header.title"));
+
         lblTheme.setText(lang.get("label.theme"));
         lblLang.setText(lang.get("label.language"));
-        comboTheme.setModel(new DefaultComboBoxModel<>(new String[]{
-            lang.get("option.theme.light"),
-            lang.get("option.theme.dark")
-        }));
-        comboTheme.setSelectedIndex("dark".equals(config.getTheme()) ? 1 : 0);
-        comboLang.setModel(new DefaultComboBoxModel<>(new String[]{
-            lang.get("option.lang.es"),
-            lang.get("option.lang.en")
-        }));
-        comboLang.setSelectedIndex("en".equals(config.getLanguage()) ? 1 : 0);
+
+        updatingControls = true;
+
+        try {
+            comboTheme.setModel(new DefaultComboBoxModel<>(getThemeOptions()));
+            comboTheme.setSelectedIndex("dark".equals(config.getTheme()) ? 1 : 0);
+
+            comboLang.setModel(new DefaultComboBoxModel<>(getLanguageOptions()));
+            comboLang.setSelectedIndex(getLanguageIndex(config.getLanguage()));
+        } finally {
+            updatingControls = false;
+        }
+
         btnAdd.setText(lang.get("btn.add"));
         btnDelete.setText(lang.get("btn.delete"));
         btnClearCompleted.setText(lang.get("btn.clear.completed"));
+
         btnFilterAll.setText(lang.get("filter.all"));
         btnFilterPending.setText(lang.get("filter.pending"));
         btnFilterCompleted.setText(lang.get("filter.completed"));
+
         inputField.putClientProperty("hint", lang.get("input.placeholder"));
+
         updateStats();
     }
 
@@ -470,7 +526,15 @@ public class MainWindow extends JFrame {
             checkbox.setOpaque(false);
             checkbox.addActionListener(e -> {
                 logger.trace("Clic en checkbox de tarea (id=" + task.getId() + ")");
+
+                boolean wasCompleted = task.isCompleted();
+
                 service.toggleComplete(task.getId());
+
+                if (!wasCompleted) {
+                    logger.info(lang.format("msg.task.completed", task.getTitle()));
+                }
+
                 refreshTaskList();
             });
 
@@ -518,5 +582,6 @@ public class MainWindow extends JFrame {
 
         boolean isSelected() { return selected; }
         String  getTaskId()  { return task.getId(); }
+        String  getTaskTitle(){ return task.getTitle(); }
     }
 }
