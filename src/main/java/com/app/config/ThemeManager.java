@@ -4,9 +4,10 @@ import com.app.logging.AppLogger;
 
 import java.awt.Color;
 import java.awt.Font;
+import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
-import java.util.Properties;
+import java.util.*;
 
 public class ThemeManager {
 
@@ -14,7 +15,9 @@ public class ThemeManager {
     private static final String THEMES_DIR = "resources/themes/";
 
     private final AppLogger logger = AppLogger.getInstance();
-    private Properties themeProps  = new Properties();
+    private Properties themeProps = new Properties();
+    private List<String> availableThemes;
+    private Map<String, String> themeDisplayNames;
 
     private ThemeManager() {
         reload();
@@ -34,11 +37,71 @@ public class ThemeManager {
         Properties newProps = new Properties();
         try (FileInputStream fis = new FileInputStream(path)) {
             newProps.load(fis);
-            themeProps = newProps;
-            logger.info("Tema cargado: " + path);
         } catch (IOException e) {
             logger.logError("Error al cargar tema: " + path, e);
+            return;
         }
+
+        ConfigManager config = ConfigManager.getInstance();
+        String fontFamily = config.getFontFamily();
+        if (!fontFamily.isEmpty()) {
+            newProps.setProperty("font.family", fontFamily);
+        }
+        int fontSize = config.getFontSize();
+        if (fontSize > 0) {
+            newProps.setProperty("font.size.normal", String.valueOf(fontSize));
+            newProps.setProperty("font.size.title", String.valueOf(fontSize + 6));
+            newProps.setProperty("font.size.small", String.valueOf(fontSize - 2));
+        }
+
+        themeProps = newProps;
+        logger.info("Tema cargado: " + path);
+    }
+
+    public List<String> getAvailableThemes() {
+        if (availableThemes == null) {
+            discoverThemes();
+        }
+        return availableThemes;
+    }
+
+    public String getThemeDisplay(String themeKey) {
+        if (themeDisplayNames == null) {
+            discoverThemes();
+        }
+        return themeDisplayNames.getOrDefault(themeKey, themeKey);
+    }
+
+    private void discoverThemes() {
+        availableThemes = new ArrayList<>();
+        themeDisplayNames = new HashMap<>();
+
+        File dir = new File(THEMES_DIR);
+        File[] files = dir.listFiles((d, name) -> name.matches("theme-(\\w+)\\.properties"));
+        if (files == null || files.length == 0) {
+            availableThemes.add("light");
+            themeDisplayNames.put("light", "Light");
+            return;
+        }
+
+        for (File f : files) {
+            String themeName = f.getName().replaceAll("theme-(\\w+)\\.properties", "$1");
+            Properties temp = new Properties();
+            try (FileInputStream fis = new FileInputStream(f)) {
+                temp.load(fis);
+            } catch (IOException e) {
+                continue;
+            }
+            String display = temp.getProperty("theme.display", themeName);
+            availableThemes.add(themeName);
+            themeDisplayNames.put(themeName, display);
+        }
+
+        availableThemes.sort((a, b) -> {
+            String da = themeDisplayNames.get(a);
+            String db = themeDisplayNames.get(b);
+            return da.compareToIgnoreCase(db);
+        });
     }
 
     public Color getBackground()             { return color("color.background", "#F5F5F5"); }

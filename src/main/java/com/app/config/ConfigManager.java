@@ -81,6 +81,28 @@ public class ConfigManager {
         return props.getProperty("app.version", "1.0.0");
     }
 
+    public String getFontFamily() {
+        return props.getProperty("font.family", "");
+    }
+
+    public void setFontFamily(String family) {
+        props.setProperty("font.family", family);
+        save();
+    }
+
+    public int getFontSize() {
+        try {
+            return Integer.parseInt(props.getProperty("font.size.normal", "0"));
+        } catch (NumberFormatException e) {
+            return 0;
+        }
+    }
+
+    public void setFontSize(int size) {
+        props.setProperty("font.size.normal", String.valueOf(size));
+        save();
+    }
+
     public String get(String key, String defaultValue) {
         return props.getProperty(key, defaultValue);
     }

@@ -14,6 +14,7 @@ import java.awt.*;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.util.List;
+import java.util.ArrayList;
 
 public class MainWindow extends JFrame {
 
@@ -43,7 +44,11 @@ public class MainWindow extends JFrame {
     private JComboBox<String> comboLang;
     private JLabel     lblTheme;
     private JLabel     lblLang;
+    private JComboBox<String> comboFontFamily;
+    private JComboBox<String> comboFontSize;
+    private JLabel     lblFont;
 
+    private List<String> themeCodes = new ArrayList<>();
     private String activeFilter = "all";
 
     private static final String[] LANGUAGE_CODES = {"es", "en", "fr", "pt", "de"};
@@ -125,11 +130,11 @@ public class MainWindow extends JFrame {
         configPanel.setOpaque(false);
 
         lblTheme = new JLabel(lang.get("label.theme"));
-        comboTheme = new JComboBox<>(new String[]{
-            lang.get("option.theme.light"),
-            lang.get("option.theme.dark")
-        });
-        comboTheme.setSelectedIndex("dark".equals(config.getTheme()) ? 1 : 0);
+        comboTheme = new JComboBox<>();
+        themeCodes = theme.getAvailableThemes();
+        themeCodes.forEach(code -> comboTheme.addItem(theme.getThemeDisplay(code)));
+        int themeIdx = themeCodes.indexOf(config.getTheme());
+        if (themeIdx >= 0) comboTheme.setSelectedIndex(themeIdx);
         comboTheme.addActionListener(e -> onThemeChanged());
 
         lblLang = new JLabel(lang.get("label.language"));
@@ -137,11 +142,28 @@ public class MainWindow extends JFrame {
         comboLang.setSelectedIndex(getLanguageIndex(config.getLanguage()));
         comboLang.addActionListener(e -> onLanguageChanged());
 
+        lblFont = new JLabel(lang.get("label.font"));
+        comboFontFamily = new JComboBox<>(GraphicsEnvironment.getLocalGraphicsEnvironment()
+            .getAvailableFontFamilyNames());
+        comboFontFamily.setSelectedItem(theme.getFontNormal().getFamily());
+        comboFontFamily.addActionListener(e -> onFontChanged());
+
+        comboFontSize = new JComboBox<>();
+        for (int i = 10; i <= 24; i++) {
+            comboFontSize.addItem(String.valueOf(i));
+        }
+        comboFontSize.setSelectedItem(String.valueOf(theme.getFontNormal().getSize()));
+        comboFontSize.addActionListener(e -> onFontChanged());
+
         configPanel.add(lblTheme);
         configPanel.add(comboTheme);
         configPanel.add(Box.createHorizontalStrut(10));
         configPanel.add(lblLang);
         configPanel.add(comboLang);
+        configPanel.add(Box.createHorizontalStrut(10));
+        configPanel.add(lblFont);
+        configPanel.add(comboFontFamily);
+        configPanel.add(comboFontSize);
 
         headerPanel.add(configPanel, BorderLayout.EAST);
         return headerPanel;
@@ -298,13 +320,25 @@ public class MainWindow extends JFrame {
 
     private void onThemeChanged() {
         if (updatingControls) return;
-
-        String themeKey = comboTheme.getSelectedIndex() == 0 ? "light" : "dark";
-
+        int idx = comboTheme.getSelectedIndex();
+        if (idx < 0 || idx >= themeCodes.size()) return;
+        String themeKey = themeCodes.get(idx);
+        if (themeKey.equals(config.getTheme())) return;
         config.setTheme(themeKey);
         theme.reload();
         applyTheme();
         repaint();
+    }
+
+    private void onFontChanged() {
+        if (updatingControls) return;
+        config.setFontFamily((String) comboFontFamily.getSelectedItem());
+        String sizeStr = (String) comboFontSize.getSelectedItem();
+        if (sizeStr != null) {
+            config.setFontSize(Integer.parseInt(sizeStr));
+        }
+        theme.reload();
+        applyTheme();
     }
 
     private void onLanguageChanged() {
@@ -374,18 +408,26 @@ public class MainWindow extends JFrame {
 
         lblTheme.setText(lang.get("label.theme"));
         lblLang.setText(lang.get("label.language"));
+        lblFont.setText(lang.get("label.font"));
 
         updatingControls = true;
 
         try {
-            comboTheme.setModel(new DefaultComboBoxModel<>(getThemeOptions()));
-            comboTheme.setSelectedIndex("dark".equals(config.getTheme()) ? 1 : 0);
+            String currentTheme = config.getTheme();
+            comboTheme.removeAllItems();
+            themeCodes = theme.getAvailableThemes();
+            themeCodes.forEach(code -> comboTheme.addItem(theme.getThemeDisplay(code)));
+            int themeIdx = themeCodes.indexOf(currentTheme);
+            if (themeIdx >= 0) comboTheme.setSelectedIndex(themeIdx);
 
             comboLang.setModel(new DefaultComboBoxModel<>(getLanguageOptions()));
             comboLang.setSelectedIndex(getLanguageIndex(config.getLanguage()));
         } finally {
             updatingControls = false;
         }
+
+        comboFontFamily.setSelectedItem(theme.getFontNormal().getFamily());
+        comboFontSize.setSelectedItem(String.valueOf(theme.getFontNormal().getSize()));
 
         btnAdd.setText(lang.get("btn.add"));
         btnDelete.setText(lang.get("btn.delete"));
@@ -427,8 +469,14 @@ public class MainWindow extends JFrame {
         styleFilterButton(btnFilterPending,   "pending");
         styleFilterButton(btnFilterCompleted, "completed");
 
+        if (lblTheme != null) styleLabel(lblTheme);
+        if (lblLang  != null) styleLabel(lblLang);
+        if (lblFont  != null) styleLabel(lblFont);
+
         if (comboTheme != null) styleCombo(comboTheme);
         if (comboLang  != null) styleCombo(comboLang);
+        if (comboFontFamily != null) styleCombo(comboFontFamily);
+        if (comboFontSize   != null) styleCombo(comboFontSize);
 
         if (filterPanel != null) filterPanel.setBackground(theme.getBackground());
 
@@ -475,6 +523,11 @@ public class MainWindow extends JFrame {
         btn.setFocusPainted(false);
         btn.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
         btn.setOpaque(true);
+    }
+
+    private void styleLabel(JLabel label) {
+        label.setForeground(theme.getTextPrimary());
+        label.setFont(theme.getFontNormal());
     }
 
     private void styleCombo(JComboBox<String> combo) {
