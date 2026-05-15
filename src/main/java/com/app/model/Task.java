@@ -1,6 +1,7 @@
 package com.app.model;
 
 import java.time.LocalDateTime;
+import java.util.Objects;
 import java.util.UUID;
 
 public class Task {
@@ -15,6 +16,23 @@ public class Task {
         this.title = title;
         this.completed = false;
         this.createdAt = LocalDateTime.now();
+    }
+
+    /**
+     * Reconstruye una tarea desde persistencia (archivo JSON) conservando id y fecha de creación.
+     */
+    public static Task restore(String id, String title, boolean completed, LocalDateTime createdAt) {
+        Objects.requireNonNull(id, "id");
+        Objects.requireNonNull(title, "title");
+        Objects.requireNonNull(createdAt, "createdAt");
+        return new Task(id, title, completed, createdAt);
+    }
+
+    private Task(String id, String title, boolean completed, LocalDateTime createdAt) {
+        this.id = id;
+        this.title = title;
+        this.completed = completed;
+        this.createdAt = createdAt;
     }
 
     public String getId()                  { return id; }

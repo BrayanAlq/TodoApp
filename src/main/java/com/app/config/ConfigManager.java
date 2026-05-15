@@ -15,6 +15,8 @@ public class ConfigManager {
 
     private static final String DEFAULT_LANGUAGE = "es";
     private static final String DEFAULT_THEME    = "light";
+    /** Ruta del archivo JSON de tareas (relativa al directorio de trabajo de la JVM). */
+    private static final String DEFAULT_TASKS_DATA = "data/tasks.json";
 
     private ConfigManager() {
         load();
@@ -53,6 +55,7 @@ public class ConfigManager {
         props.setProperty("app.language", DEFAULT_LANGUAGE);
         props.setProperty("app.theme",    DEFAULT_THEME);
         props.setProperty("app.version",  "1.0.0");
+        props.setProperty("data.tasks.path", DEFAULT_TASKS_DATA);
     }
 
     public String getLanguage() {
@@ -105,5 +108,21 @@ public class ConfigManager {
 
     public String get(String key, String defaultValue) {
         return props.getProperty(key, defaultValue);
+    }
+
+    /**
+     * Ubicación del fichero donde se guardan las tareas (auto-guardado).
+     */
+    public String getTasksDataPath() {
+        return props.getProperty("data.tasks.path", DEFAULT_TASKS_DATA);
+    }
+
+    public void setTasksDataPath(String path) {
+        if (path == null || path.isBlank()) {
+            props.setProperty("data.tasks.path", DEFAULT_TASKS_DATA);
+        } else {
+            props.setProperty("data.tasks.path", path.trim());
+        }
+        save();
     }
 }

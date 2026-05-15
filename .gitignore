@@ -2,6 +2,7 @@ bin/
 bin,
 logs/
 .vscode/
+data/
 *.class
 *.log
 *.lck

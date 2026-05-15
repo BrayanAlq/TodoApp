@@ -13,6 +13,8 @@ import javax.swing.border.LineBorder;
 import java.awt.*;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
+import java.io.IOException;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.ArrayList;
 
@@ -31,6 +33,8 @@ public class MainWindow extends JFrame {
     private JButton    btnAdd;
     private JButton    btnDelete;
     private JButton    btnClearCompleted;
+    private JButton    btnExport;
+    private JButton    btnImport;
     private JPanel     filterPanel;
     private JButton    btnFilterAll;
     private JButton    btnFilterPending;
@@ -215,12 +219,20 @@ public class MainWindow extends JFrame {
         btnDelete.addActionListener(e -> onDeleteTask());
         btnClearCompleted.addActionListener(e -> onClearCompleted());
 
+        btnExport = createButton(lang.get("btn.export"), "primary");
+        btnImport = createButton(lang.get("btn.import"), "primary");
+        btnExport.addActionListener(e -> onExportTasks());
+        btnImport.addActionListener(e -> onImportTasks());
+
         filterPanel.add(btnFilterAll);
         filterPanel.add(btnFilterPending);
         filterPanel.add(btnFilterCompleted);
         filterPanel.add(Box.createHorizontalStrut(20));
         filterPanel.add(btnDelete);
         filterPanel.add(btnClearCompleted);
+        filterPanel.add(Box.createHorizontalStrut(12));
+        filterPanel.add(btnExport);
+        filterPanel.add(btnImport);
 
         return filterPanel;
     }
@@ -316,6 +328,85 @@ public class MainWindow extends JFrame {
             logger.info("[USER_ACTION] No hab\u00eda tareas completadas para limpiar.");
         }
         refreshTaskList();
+    }
+
+    private void onExportTasks() {
+        JFileChooser chooser = new JFileChooser();
+        chooser.setDialogTitle(lang.get("dialog.export.title"));
+        chooser.setSelectedFile(new java.io.File("tasks-export.json"));
+        javax.swing.filechooser.FileNameExtensionFilter filter =
+            new javax.swing.filechooser.FileNameExtensionFilter("JSON (*.json)", "json");
+        chooser.setFileFilter(filter);
+        int r = chooser.showSaveDialog(this);
+        if (r != JFileChooser.APPROVE_OPTION) {
+            return;
+        }
+        java.io.File f = chooser.getSelectedFile();
+        String path = f.getPath();
+        if (!path.toLowerCase().endsWith(".json")) {
+            f = new java.io.File(path + ".json");
+        }
+        try {
+            Path p = f.toPath();
+            service.exportTo(p);
+            JOptionPane.showMessageDialog(this,
+                lang.format("msg.export.done", service.countTotal()),
+                lang.get("dialog.export.title"),
+                JOptionPane.INFORMATION_MESSAGE);
+            logger.info("[USER_ACTION] Tareas exportadas a " + p.toAbsolutePath());
+        } catch (IOException ex) {
+            logger.logError("Exportación fallida", ex);
+            JOptionPane.showMessageDialog(this,
+                lang.format("msg.data.io.error", ex.getMessage()),
+                lang.get("msg.error.title"),
+                JOptionPane.ERROR_MESSAGE);
+        }
+    }
+
+    private void onImportTasks() {
+        String[] modes = { lang.get("import.replace"), lang.get("import.merge") };
+        int modeIdx = JOptionPane.showOptionDialog(
+            this,
+            lang.get("msg.import.choose.mode"),
+            lang.get("msg.import.title"),
+            JOptionPane.DEFAULT_OPTION,
+            JOptionPane.QUESTION_MESSAGE,
+            null,
+            modes,
+            modes[0]
+        );
+        if (modeIdx < 0) {
+            return;
+        }
+        TaskService.ImportMode mode = modeIdx == 0
+            ? TaskService.ImportMode.REPLACE
+            : TaskService.ImportMode.MERGE;
+
+        JFileChooser chooser = new JFileChooser();
+        chooser.setDialogTitle(lang.get("dialog.import.title"));
+        javax.swing.filechooser.FileNameExtensionFilter filter =
+            new javax.swing.filechooser.FileNameExtensionFilter("JSON (*.json)", "json");
+        chooser.setFileFilter(filter);
+        int r = chooser.showOpenDialog(this);
+        if (r != JFileChooser.APPROVE_OPTION) {
+            return;
+        }
+        try {
+            Path p = chooser.getSelectedFile().toPath();
+            service.importFrom(p, mode);
+            refreshTaskList();
+            JOptionPane.showMessageDialog(this,
+                lang.format("msg.import.done", service.countTotal()),
+                lang.get("msg.import.title"),
+                JOptionPane.INFORMATION_MESSAGE);
+            logger.info("[USER_ACTION] Tareas importadas desde " + p.toAbsolutePath());
+        } catch (IOException ex) {
+            logger.logError("Importación fallida", ex);
+            JOptionPane.showMessageDialog(this,
+                lang.format("msg.data.io.error", ex.getMessage()),
+                lang.get("msg.error.title"),
+                JOptionPane.ERROR_MESSAGE);
+        }
     }
 
     private void onThemeChanged() {
@@ -432,6 +523,8 @@ public class MainWindow extends JFrame {
         btnAdd.setText(lang.get("btn.add"));
         btnDelete.setText(lang.get("btn.delete"));
         btnClearCompleted.setText(lang.get("btn.clear.completed"));
+        if (btnExport != null) btnExport.setText(lang.get("btn.export"));
+        if (btnImport != null) btnImport.setText(lang.get("btn.import"));
 
         btnFilterAll.setText(lang.get("filter.all"));
         btnFilterPending.setText(lang.get("filter.pending"));
@@ -464,6 +557,8 @@ public class MainWindow extends JFrame {
         if (btnAdd != null)            styleButton(btnAdd,            theme.getBackgroundButton());
         if (btnDelete != null)         styleButton(btnDelete,         theme.getBackgroundButtonDanger());
         if (btnClearCompleted != null) styleButton(btnClearCompleted, theme.getBackgroundButtonSuccess());
+        if (btnExport != null)         styleButton(btnExport,         theme.getBackgroundButton());
+        if (btnImport != null)         styleButton(btnImport,         theme.getBackgroundButton());
 
         styleFilterButton(btnFilterAll,       "all");
         styleFilterButton(btnFilterPending,   "pending");
