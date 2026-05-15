@@ -1,0 +1,7 @@
+bin/
+bin,
+logs/
+.vscode/
+*.class
+*.log
+*.lck
